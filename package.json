@@ -1,0 +1,76 @@
+{
+  "name": "@cyco77/pptb-solution-layer-manager",
+  "version": "0.1.0",
+  "displayName": "Solution Layer Manager",
+  "description": "A Power Platform Toolbox tool to browse solution components and inspect their customization layers.",
+  "main": "index.html",
+  "icon": "solution-layer-explorer.svg",
+  "author": "Lars Hildebrandt",
+  "contributors": [
+    {
+      "name": "Lars Hildebrandt",
+      "url": "https://github.com/cyco77"
+    }
+  ],
+  "configurations": {
+    "repository": "https://github.com/cyco77/pptb-solution-layer-manager",
+    "website": "https://github.com/cyco77/pptb-solution-layer-manager",
+    "readmeUrl": "https://raw.githubusercontent.com/cyco77/pptb-solution-layer-manager/refs/heads/main/README.md"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cyco77/pptb-solution-layer-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cyco77/pptb-solution-layer-manager/issues"
+  },
+  "homepage": "https://github.com/cyco77/pptb-solution-layer-manager#readme",
+  "keywords": [
+    "power-platform",
+    "dynamics-365",
+    "pptb",
+    "toolbox"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc && vite build",
+    "dev": "vite",
+    "watch": "vite build --watch",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "finalize-package": "npm shrinkwrap",
+    "release:patch": "npm version patch",
+    "release:minor": "npm version minor",
+    "release:major": "npm version major",
+    "release:publish": "npm publish"
+  },
+  "dependencies": {
+    "@fluentui/react-components": "^9.72.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@pptb/types": "^1.2.3",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-v8": "^1.0.4",
+    "@vitest/ui": "^1.0.4",
+    "jsdom": "^23.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^8.0.16",
+    "vitest": "^1.0.4"
+  },
+  "files": [
+    "dist",
+    "npm-shrinkwrap.json"
+  ]
+}
