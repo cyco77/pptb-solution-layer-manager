@@ -1,33 +1,50 @@
 # Solution Layer Manager
 
-A Power Platform Toolbox (PPTB) tool to inspect and manage customization layers in Dataverse solution components. Understand what customizations have been applied to your solutions and how they're layered.
+![Solution Layer Manager](https://raw.githubusercontent.com/cyco77/pptb-solution-layer-manager/main/icon/solution-layer-explorer_small.png)
+
+A Power Platform Toolbox (PPTB) tool to inspect Dataverse solution component layers, analyze active customizations, and remove active layers in bulk.
+
+## Screenshots
+
+### Dark Theme
+
+![Solution Layer Manager - Dark Theme](https://raw.githubusercontent.com/cyco77/pptb-solution-layer-manager/main/screenshots/main_dark.png)
+
+### Light Theme
+
+![Solution Layer Manager - Light Theme](https://raw.githubusercontent.com/cyco77/pptb-solution-layer-manager/main/screenshots/main_light.png)
 
 ## Features
 
-### Solution & Component Browsing
-
-- Browse all solutions in your Dataverse environment
-- Filter by management status (managed/unmanaged) and visibility
-- View all 130+ Dataverse component types (entities, attributes, relationships, workflows, forms, etc.)
-- See component counts and identify which have active customization layers
-
-### Layer Inspection & Analysis
-
-- View all customization layers for any selected component
-- Inspect layer order and stacking to understand customization hierarchy
-- Examine layer metadata, component JSON, and change tracking information
-- Switch between structured view and raw JSON for detailed analysis
-
-### Layer Management
-
-- Revert individual or multiple active layers
-
-### Layer Details Viewer
-
-- Search and filter within layer details
-- Syntax-highlighted JSON display with copy functionality
-- Color-coded badges showing value types
-- Expandable/collapsible hierarchy view for easy navigation
+- Browse solutions in your Dataverse environment
+- Filter solutions by:
+  - Type (Managed / Unmanaged / All)
+  - Visibility (Hidden)
+- Review solution options with:
+  - Friendly name
+  - Version number
+  - Managed or unmanaged tag
+- Load and browse 130+ Dataverse component types
+- See component counts per type and identify which components have active layers
+- Load active layers for selected component types
+- Review components with active layers in a grid view
+- Open a layer drawer for each component to inspect:
+  - All available layers
+  - Layer order and active layer position
+  - Properties JSON
+  - Changes JSON
+  - Children JSON
+- Use the layer details viewer to:
+  - Search and filter structured data
+  - Switch between structured view and raw JSON
+  - Copy full JSON or individual values
+  - Review color-coded value types
+  - Expand nested objects and arrays
+- Remove active layers for:
+  - Selected components
+  - All loaded components with active layers
+- Use Dataverse `BulkRemoveActiveCustomizationsAsync` to remove multiple active customizations in one operation
+- Export an active layer report as Markdown
 
 ## License
 
