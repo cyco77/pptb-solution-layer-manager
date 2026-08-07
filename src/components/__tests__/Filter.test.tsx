@@ -269,7 +269,7 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}

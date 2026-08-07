@@ -454,3 +454,114 @@ export const revertActiveLayer = async (
     throw err;
   }
 };
+
+const wait = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const waitForAsyncOperation = async (asyncOperationId: string): Promise<void> => {
+  const maxAttempts = 120;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const result = await window.dataverseAPI.queryData(
+      `asyncoperations?$select=statecode,statuscode,message,friendlymessage,errorcode&$filter=asyncoperationid eq ${asyncOperationId}`,
+    );
+
+    const job = result.value[0];
+
+    if (!job) {
+      throw new Error(
+        `Bulk removal job ${asyncOperationId} could not be found in asyncoperations.`,
+      );
+    }
+
+    const stateCode = Number(job.statecode);
+    const statusCode = Number(job.statuscode);
+
+    if (stateCode === 3) {
+      if (statusCode === 30) {
+        return;
+      }
+
+      const errorMessage =
+        (typeof job.friendlymessage === "string" && job.friendlymessage) ||
+        (typeof job.message === "string" && job.message) ||
+        (job.errorcode !== undefined && job.errorcode !== null
+          ? `Dataverse async job failed with error code ${job.errorcode}.`
+          : "Dataverse async job did not succeed.");
+
+      throw new Error(errorMessage);
+    }
+
+    await wait(2000);
+  }
+
+  throw new Error(
+    `Timed out waiting for bulk active layer removal job ${asyncOperationId}.`,
+  );
+};
+
+export const bulkRevertActiveLayers = async (
+  components: Array<{
+    componentType: number;
+    componentId: string;
+    componentTypeName?: string;
+  }>,
+): Promise<void> => {
+  if (components.length === 0) return;
+
+  const solutionComponentReferences = components.map((component) => {
+    const componentDef = COMPONENT_TYPES.find(
+      (entry) => entry.solutioncomponenttype === component.componentType,
+    );
+    const logicalName = componentDef?.entityLogicalName;
+
+    if (!logicalName || !component.componentId) {
+      throw new Error(
+        `Cannot bulk remove active layer: missing entityLogicalName for type ${component.componentType}${component.componentTypeName ? ` (${component.componentTypeName})` : ""}.`,
+      );
+    }
+
+    return {
+      Id: component.componentId,
+      LogicalName: logicalName,
+    };
+  });
+
+  logger.info(
+    `[DELETE] bulkRevertActiveLayers: Removing active layers for ${solutionComponentReferences.length} component(s)`,
+  );
+
+  try {
+    const response = await (window.dataverseAPI as any).execute({
+      operationName: "BulkRemoveActiveCustomizationsAsync",
+      operationType: "action",
+      parameters: {
+        BulkRemoveActiveCustomizationsParameters: {
+          ContinueOnError: false,
+          SolutionComponentReferences: solutionComponentReferences,
+        },
+      },
+    });
+
+    const asyncOperationId = response.AsyncOperationId;
+
+    if (typeof asyncOperationId !== "string" || !asyncOperationId) {
+      throw new Error(
+        "Bulk removal did not return an AsyncOperationId response.",
+      );
+    }
+
+    await waitForAsyncOperation(asyncOperationId);
+
+    logger.info(
+      `[DELETE] bulkRevertActiveLayers: success for ${solutionComponentReferences.length} component(s) via async job ${asyncOperationId}`,
+    );
+  } catch (err) {
+    logger.warning(
+      `[DELETE] bulkRevertActiveLayers: failed — ${(err as Error).message}`,
+    );
+    throw err;
+  }
+};

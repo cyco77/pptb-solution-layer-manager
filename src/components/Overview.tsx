@@ -19,7 +19,7 @@ import {
   loadComponentNames,
   loadComponentLayers,
   loadActiveLayersForComponents,
-  revertActiveLayer,
+  bulkRevertActiveLayers,
 } from "../services/dataverseService";
 import { Solution } from "../types/solution";
 import {
@@ -332,55 +332,44 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
       return;
 
     setIsDeletingLayers(true);
-    setDeletionProgress({ current: 0, total: activeComps.length });
+    setDeletionProgress({ current: activeComps.length, total: activeComps.length });
 
-    const successfullyRemovedIds = new Set<string>();
-    const errors: string[] = [];
+    try {
+      await bulkRevertActiveLayers(
+        activeComps.map((comp) => ({
+          componentType: comp.componenttype,
+          componentId: comp.objectid,
+          componentTypeName: comp.componenttypeName,
+        })),
+      );
 
-    for (let i = 0; i < activeComps.length; i++) {
-      const comp = activeComps[i];
-      try {
-        const layer = comp.layers?.find(
-          (l) => l.msdyn_solutionname?.toLowerCase() === "active",
-        );
-        if (!layer) {
-          errors.push(`${comp.name || comp.objectid}: No active layer found`);
-          setDeletionProgress({ current: i + 1, total: activeComps.length });
-          continue;
-        }
-        await revertActiveLayer(layer, comp.componenttype);
-        successfullyRemovedIds.add(comp.solutioncomponentid);
-      } catch (err) {
-        errors.push(`${comp.name || comp.objectid}: ${(err as Error).message}`);
-      }
-      setDeletionProgress({ current: i + 1, total: activeComps.length });
+      setAllComponents((prev) =>
+        prev.map((c) =>
+          activeComps.some(
+            (activeComp) =>
+              activeComp.solutioncomponentid === c.solutioncomponentid,
+          )
+            ? { ...c, layers: null }
+            : c,
+        ),
+      );
+      setActiveLayersLoaded(false);
+
+      await window.toolboxAPI.utils.showNotification({
+        title: "Active Layers Removal",
+        body: `Successfully removed ${activeComps.length} active layer(s).`,
+        type: "info",
+      });
+    } catch (error) {
+      await window.toolboxAPI.utils.showNotification({
+        title: "Active Layers Removal",
+        body: `Failed to remove active layers: ${(error as Error).message}`,
+        type: "error",
+      });
+    } finally {
+      setIsDeletingLayers(false);
+      setDeletionProgress(null);
     }
-
-    // Only remove successfully deleted components from UI
-    setAllComponents((prev) =>
-      prev.map((c) =>
-        successfullyRemovedIds.has(c.solutioncomponentid)
-          ? { ...c, layers: null }
-          : c,
-      ),
-    );
-    setActiveLayersLoaded(false);
-    setIsDeletingLayers(false);
-    setDeletionProgress(null);
-
-    const successCount = successfullyRemovedIds.size;
-    const errorCount = errors.length;
-
-    await window.toolboxAPI.utils.showNotification({
-      title: "Active Layers Removal",
-      body:
-        successCount > 0 && errorCount === 0
-          ? `Successfully removed ${successCount} active layer(s).`
-          : successCount > 0 && errorCount > 0
-            ? `Removed: ${successCount}\nErrors: ${errorCount}\n\n${errors.slice(0, 3).join("\n")}${errors.length > 3 ? "\n..." : ""}`
-            : `Failed to remove any layers.\n\n${errors.slice(0, 3).join("\n")}${errors.length > 3 ? "\n..." : ""}`,
-      type: successCount > 0 ? "info" : "error",
-    });
   }, [allComponents]);
 
   const handleDeleteSelectedLayers = useCallback(
@@ -394,56 +383,43 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
         return;
 
       setIsDeletingLayers(true);
-      setDeletionProgress({ current: 0, total: selected.length });
+      setDeletionProgress({ current: selected.length, total: selected.length });
 
-      const successfullyRemovedIds = new Set<string>();
-      const errors: string[] = [];
+      try {
+        await bulkRevertActiveLayers(
+          selected.map((comp) => ({
+            componentType: comp.componenttype,
+            componentId: comp.objectid,
+            componentTypeName: comp.componenttypeName,
+          })),
+        );
 
-      for (let i = 0; i < selected.length; i++) {
-        const comp = selected[i];
-        try {
-          const layer = comp.layers?.find(
-            (l) => l.msdyn_solutionname?.toLowerCase() === "active",
-          );
-          if (!layer) {
-            errors.push(`${comp.name || comp.objectid}: No active layer found`);
-            setDeletionProgress({ current: i + 1, total: selected.length });
-            continue;
-          }
-          await revertActiveLayer(layer, comp.componenttype);
-          successfullyRemovedIds.add(comp.solutioncomponentid);
-        } catch (err) {
-          errors.push(
-            `${comp.name || comp.objectid}: ${(err as Error).message}`,
-          );
-        }
-        setDeletionProgress({ current: i + 1, total: selected.length });
+        setAllComponents((prev) =>
+          prev.map((c) =>
+            selected.some(
+              (selectedComp) =>
+                selectedComp.solutioncomponentid === c.solutioncomponentid,
+            )
+              ? { ...c, layers: null }
+              : c,
+          ),
+        );
+
+        await window.toolboxAPI.utils.showNotification({
+          title: "Active Layers Removal",
+          body: `Successfully removed ${selected.length} active layer(s).`,
+          type: "info",
+        });
+      } catch (error) {
+        await window.toolboxAPI.utils.showNotification({
+          title: "Active Layers Removal",
+          body: `Failed to remove active layers: ${(error as Error).message}`,
+          type: "error",
+        });
+      } finally {
+        setIsDeletingLayers(false);
+        setDeletionProgress(null);
       }
-
-      // Only remove successfully deleted components from UI
-      setAllComponents((prev) =>
-        prev.map((c) =>
-          successfullyRemovedIds.has(c.solutioncomponentid)
-            ? { ...c, layers: null }
-            : c,
-        ),
-      );
-      setIsDeletingLayers(false);
-      setDeletionProgress(null);
-
-      const successCount = successfullyRemovedIds.size;
-      const errorCount = errors.length;
-
-      await window.toolboxAPI.utils.showNotification({
-        title: "Active Layers Removal",
-        body:
-          successCount > 0 && errorCount === 0
-            ? `Successfully removed ${successCount} active layer(s).`
-            : successCount > 0 && errorCount > 0
-              ? `Removed: ${successCount}\nErrors: ${errorCount}\n\n${errors.slice(0, 3).join("\n")}${errors.length > 3 ? "\n..." : ""}`
-              : `Failed to remove any layers.\n\n${errors.slice(0, 3).join("\n")}${errors.length > 3 ? "\n..." : ""}`,
-        type: successCount > 0 ? "info" : "error",
-      });
     },
     [],
   );

@@ -13,7 +13,7 @@ import {
   Title3,
   Text,
 } from "@fluentui/react-components";
-import iconImage from "../icon/ownership-mover_logo.png"; // TODO: replace with solution layer manager icon
+import iconImage from "../icon/solution-layer-explorer_small.png";
 
 const useStyles = makeStyles({
   container: {
