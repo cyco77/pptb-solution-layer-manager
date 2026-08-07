@@ -27,6 +27,7 @@ import {
   ComponentWithLayers,
 } from "../types/solutionComponent";
 import { ComponentLayer } from "../types/componentLayer";
+import { ManagedFilter } from "../types/solutionFilters";
 
 interface IOverviewProps {
   connection: ToolBoxAPI.DataverseConnection | null;
@@ -85,7 +86,8 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
   // Solutions
   const [solutions, setSolutions] = useState<Solution[]>([]);
   const [isLoadingSolutions, setIsLoadingSolutions] = useState(false);
-  const [includeUnmanaged, setIncludeUnmanaged] = useState(false);
+  const [managedFilter, setManagedFilter] =
+    useState<ManagedFilter>("managed");
   const [includeHidden, setIncludeHidden] = useState(false);
 
   // Component type definitions
@@ -150,7 +152,7 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
     const loadSols = async () => {
       try {
         setIsLoadingSolutions(true);
-        const sols = await loadSolutions(includeUnmanaged, includeHidden);
+        const sols = await loadSolutions(managedFilter, includeHidden);
         setSolutions(sols);
       } catch (error) {
         logger.error(`Error loading solutions: ${(error as Error).message}`);
@@ -165,14 +167,14 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
     };
 
     loadSols();
-  }, [connection, includeUnmanaged, includeHidden]);
+  }, [connection, managedFilter, includeHidden]);
 
   // ---- Reload solutions (for manual refresh via Filter) ----
   const handleReloadSolutions = useCallback(async () => {
     if (!connection) return;
     try {
       setIsLoadingSolutions(true);
-      const sols = await loadSolutions(includeUnmanaged, includeHidden);
+      const sols = await loadSolutions(managedFilter, includeHidden);
       setSolutions(sols);
     } catch (error) {
       logger.error(`Error loading solutions: ${(error as Error).message}`);
@@ -184,7 +186,7 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
     } finally {
       setIsLoadingSolutions(false);
     }
-  }, [connection, includeUnmanaged, includeHidden]);
+  }, [connection, managedFilter, includeHidden]);
 
   // ---- Select solution → load component stubs ----
   const handleSolutionChanged = useCallback(
@@ -590,12 +592,12 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
         <Filter
           solutions={solutions}
           selectedSolutionId={selectedSolutionId}
-          includeUnmanaged={includeUnmanaged}
+          managedFilter={managedFilter}
           includeHidden={includeHidden}
           isLoadingSolutions={isLoadingSolutions}
           isDeletingLayers={isDeletingLayers}
           onSolutionChanged={handleSolutionChanged}
-          onIncludeUnmanagedChanged={(v) => setIncludeUnmanaged(v)}
+          onManagedFilterChanged={setManagedFilter}
           onIncludeHiddenChanged={(v) => setIncludeHidden(v)}
           onReloadSolutions={handleReloadSolutions}
         />

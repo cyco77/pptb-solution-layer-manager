@@ -369,6 +369,14 @@ export const LayerDetailsViewer: React.FC<LayerDetailsViewerProps> = ({
     }
   };
 
+  const hasExpandedContent = (value: any, type: "array" | "object") => {
+    if (type === "array") {
+      return Array.isArray(value) && value.length > 0;
+    }
+
+    return Object.keys(value).length > 0;
+  };
+
   const renderExpandedContent = (value: any, type: "array" | "object") => {
     if (type === "array") {
       return (
@@ -657,6 +665,7 @@ export const LayerDetailsViewer: React.FC<LayerDetailsViewerProps> = ({
                       )}
                     </div>
                     {(pair.type === "array" || pair.type === "object") &&
+                      hasExpandedContent(pair.value, pair.type) &&
                       renderExpandedContent(pair.value, pair.type)}
                   </div>
                 ))}

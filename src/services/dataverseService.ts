@@ -1,4 +1,5 @@
 import { Solution } from "../types/solution";
+import { ManagedFilter } from "../types/solutionFilters";
 import {
   SolutionComponent,
   ComponentTypeDefinition,
@@ -36,13 +37,15 @@ const loadAllData = async (fullUrl: string) => {
 };
 
 export const loadSolutions = async (
-  includeUnmanaged = false,
+  managedFilter: ManagedFilter = "managed",
   includeHidden = false,
 ): Promise<Solution[]> => {
   const filters: string[] = [];
 
-  if (!includeUnmanaged) {
+  if (managedFilter === "managed") {
     filters.push("ismanaged eq true");
+  } else if (managedFilter === "unmanaged") {
+    filters.push("ismanaged eq false");
   }
   if (!includeHidden) {
     filters.push("isvisible eq true");
@@ -64,7 +67,7 @@ export const loadSolutions = async (
   }));
 
   logger.info(
-    `[RESULT] loadSolutions: Loaded ${mapped.length} solutions (includeUnmanaged=${includeUnmanaged}, includeHidden=${includeHidden})`,
+    `[RESULT] loadSolutions: Loaded ${mapped.length} solutions (managedFilter=${managedFilter}, includeHidden=${includeHidden})`,
   );
 
   return mapped;

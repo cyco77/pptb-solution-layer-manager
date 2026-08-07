@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Badge,
   Button,
@@ -119,12 +119,31 @@ export const LayersPanel: React.FC<ILayersPanelProps> = ({
     layers.find((l) => l.msdyn_solutionname?.toLowerCase() === "active") ??
     null;
 
+  const getAvailableTabs = (layer: ComponentLayer | null) => {
+    if (!layer) return [] as string[];
+
+    const tabs: string[] = [];
+
+    if (layer.msdyn_componentjson) tabs.push("properties");
+    if (layer.msdyn_changes) tabs.push("changes");
+    if (layer.msdyn_children) tabs.push("children");
+
+    return tabs;
+  };
+
   const handleLayerSelect = (layer: ComponentLayer) => {
     setSelectedLayer(layer);
-    setSelectedTab("properties");
   };
 
   const currentLayer = selectedLayer ?? activeLayer ?? layers[0] ?? null;
+
+  useEffect(() => {
+    const availableTabs = getAvailableTabs(currentLayer);
+
+    if (availableTabs.length > 0 && !availableTabs.includes(selectedTab)) {
+      setSelectedTab(availableTabs[0]);
+    }
+  }, [currentLayer, selectedTab]);
 
   return (
     <OverlayDrawer

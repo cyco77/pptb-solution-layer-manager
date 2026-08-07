@@ -235,6 +235,19 @@ describe("LayerDetailsViewer", () => {
       renderWithTheme(<LayerDetailsViewer json={jsonWithEmpty} />);
       expect(screen.getByText("empty")).toBeTruthy();
     });
+
+    it("should not render an expanded box for empty arrays", () => {
+      const jsonWithEmptyArray = JSON.stringify({
+        children: [],
+        name: "test",
+      });
+
+      renderWithTheme(<LayerDetailsViewer json={jsonWithEmptyArray} />);
+
+      expect(screen.getByText("children")).toBeTruthy();
+      expect(screen.queryByText("[0]")).toBeFalsy();
+      expect(screen.getByText("[]")).toBeTruthy();
+    });
   });
 
   describe("keyboard interactions", () => {

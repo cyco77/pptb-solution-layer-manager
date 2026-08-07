@@ -41,7 +41,7 @@ const mockSolutions: Solution[] = [
 describe("Filter", () => {
   const mockCallbacks = {
     onSolutionChanged: vi.fn(),
-    onIncludeUnmanagedChanged: vi.fn(),
+    onManagedFilterChanged: vi.fn(),
     onIncludeHiddenChanged: vi.fn(),
     onReloadSolutions: vi.fn(),
   };
@@ -56,7 +56,7 @@ describe("Filter", () => {
         <Filter
           solutions={[]}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}
@@ -72,7 +72,7 @@ describe("Filter", () => {
         <Filter
           solutions={[]}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}
@@ -87,7 +87,7 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}
@@ -104,7 +104,7 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}
@@ -112,7 +112,7 @@ describe("Filter", () => {
       );
 
       // The combobox should be present
-      const combobox = screen.getByRole("combobox");
+      const combobox = screen.getByRole("combobox", { name: /solution/i });
       expect(combobox).toBeTruthy();
     });
 
@@ -121,14 +121,14 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}
         />,
       );
 
-      const combobox = screen.getByRole("combobox");
+      const combobox = screen.getByRole("combobox", { name: /solution/i });
       fireEvent.click(combobox);
 
       // Wait for options to appear and click first solution
@@ -147,25 +147,73 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId="sol-1"
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}
         />,
       );
 
-      const combobox = screen.getByRole("combobox") as HTMLInputElement;
+      const combobox = screen.getByRole("combobox", {
+        name: /solution/i,
+      }) as HTMLInputElement;
       expect(combobox.value).toContain("Custom Solution");
     });
-  });
 
-  describe("checkbox filters", () => {
-    it.skip("should call onIncludeUnmanagedChanged when checkbox changes", async () => {
+    it("should show version and managed state in solution options", async () => {
       renderWithTheme(
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
+          includeHidden={false}
+          isLoadingSolutions={false}
+          {...mockCallbacks}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("combobox", { name: /solution/i }));
+
+      await waitFor(() => {
+        expect(screen.getAllByText("1.0.0").length).toBeGreaterThan(0);
+        expect(screen.getByText("2.0.0")).toBeTruthy();
+        expect(screen.getAllByText("Unmanaged").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("Managed").length).toBeGreaterThan(0);
+      });
+    });
+
+    it("should call onManagedFilterChanged when type filter changes", async () => {
+      renderWithTheme(
+        <Filter
+          solutions={mockSolutions}
+          selectedSolutionId={null}
+          managedFilter="managed"
+          includeHidden={false}
+          isLoadingSolutions={false}
+          {...mockCallbacks}
+        />,
+      );
+
+      const typeDropdown = screen.getByRole("combobox", { name: /type/i });
+      fireEvent.click(typeDropdown);
+
+      await waitFor(() => {
+        fireEvent.click(screen.getByRole("option", { name: "Unmanaged" }));
+      });
+
+      expect(mockCallbacks.onManagedFilterChanged).toHaveBeenCalledWith(
+        "unmanaged",
+      );
+    });
+  });
+
+  describe("checkbox filters", () => {
+    it.skip("should call onIncludeHiddenChanged when checkbox changes", async () => {
+      renderWithTheme(
+        <Filter
+          solutions={mockSolutions}
+          selectedSolutionId={null}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}
@@ -175,26 +223,6 @@ describe("Filter", () => {
       const checkboxes = screen.getAllByRole("checkbox");
       fireEvent.click(checkboxes[0]);
 
-      expect(mockCallbacks.onIncludeUnmanagedChanged).toHaveBeenCalledWith(
-        true,
-      );
-    });
-
-    it.skip("should call onIncludeHiddenChanged when checkbox changes", async () => {
-      renderWithTheme(
-        <Filter
-          solutions={mockSolutions}
-          selectedSolutionId={null}
-          includeUnmanaged={false}
-          includeHidden={false}
-          isLoadingSolutions={false}
-          {...mockCallbacks}
-        />,
-      );
-
-      const checkboxes = screen.getAllByRole("checkbox");
-      fireEvent.click(checkboxes[1]);
-
       expect(mockCallbacks.onIncludeHiddenChanged).toHaveBeenCalledWith(true);
     });
 
@@ -203,7 +231,7 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}
@@ -221,7 +249,7 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={true}
+          managedFilter="all"
           includeHidden={true}
           isLoadingSolutions={false}
           {...mockCallbacks}
@@ -267,7 +295,7 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={true}
           {...mockCallbacks}
@@ -285,7 +313,7 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           isDeletingLayers={true}
@@ -306,14 +334,14 @@ describe("Filter", () => {
         <Filter
           solutions={[]}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={false}
           {...mockCallbacks}
         />,
       );
 
-      expect(screen.getByRole("combobox")).toBeTruthy();
+      expect(screen.getByRole("combobox", { name: /solution/i })).toBeTruthy();
     });
   });
 
@@ -323,7 +351,7 @@ describe("Filter", () => {
         <Filter
           solutions={mockSolutions}
           selectedSolutionId={null}
-          includeUnmanaged={false}
+          managedFilter="managed"
           includeHidden={false}
           isLoadingSolutions={true}
           {...mockCallbacks}
@@ -331,7 +359,7 @@ describe("Filter", () => {
       );
 
       // Should still render normally, just with disabled reload button
-      expect(screen.getByRole("combobox")).toBeTruthy();
+      expect(screen.getByRole("combobox", { name: /solution/i })).toBeTruthy();
     });
   });
 });
