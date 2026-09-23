@@ -1,12 +1,12 @@
 {
   "name": "@cyco77/pptb-solution-layer-manager",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@cyco77/pptb-solution-layer-manager",
-      "version": "0.1.1",
+      "version": "1.0.0",
       "license": "MIT",
       "dependencies": {
         "@fluentui/react-components": "^9.72.7",
