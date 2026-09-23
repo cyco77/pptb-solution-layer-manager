@@ -1,0 +1,48 @@
+{
+  "invocation": {
+    "version": "1.5.0",
+    "capabilities": ["solution-selector"],
+    "prefill": {
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "loadSolutionComponents",
+            "loadActiveLayers",
+            "loadActiveLayerChanges",
+            "resolveUser"
+          ]
+        },
+        "solutionId": { "type": "string" },
+        "solutionName": { "type": "string" },
+        "solutionUniqueName": { "type": "string" },
+        "userId": { "type": "string" },
+        "componentTypes": { "type": "array", "items": { "type": "number" } },
+        "componentTypeNames": { "type": "array", "items": { "type": "string" } },
+        "componentIds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "returnTopic": {
+      "properties": {
+        "status": { "type": "string", "enum": ["success"] },
+        "operation": { "type": "string" },
+        "solutionId": { "type": "string" },
+        "userId": { "type": "string" },
+        "user": { "type": "object" },
+        "components": { "type": "array", "items": { "type": "object" } },
+        "activeLayerCount": { "type": "number" }
+      }
+    }
+  },
+  "agents": {
+    "version": "1.5.0",
+    "invokable": true,
+    "modes": ["one-way", "two-way"],
+    "defaultMode": "two-way",
+    "timeoutMS": 120000,
+    "headless": true,
+    "executionModes": ["windowed", "headless"],
+    "defaultExecutionMode": "headless",
+    "headlessEntry": "dist/headless.js"
+  }
+}

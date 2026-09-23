@@ -10,6 +10,31 @@ import { COMPONENT_TYPES, getLayerName, getEntityInfo } from "./componentTypes";
 
 const LAYER_BATCH_SIZE = 50;
 
+const getDataverseAPI = () => {
+  const api =
+    typeof window !== "undefined" && window.dataverseAPI
+      ? window.dataverseAPI
+      : globalThis.dataverseAPI;
+  if (!api) {
+    throw new Error("Dataverse API is not available for this operation.");
+  }
+  return api;
+};
+
+const getStringValue = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const formattedValue = record["@OData.Community.Display.V1.FormattedValue"];
+    if (typeof formattedValue === "string") return formattedValue;
+    if (typeof record.value === "string") return record.value;
+  }
+  return "";
+};
+
+const isActiveLayer = (layer: { msdyn_solutionname?: unknown }): boolean =>
+  getStringValue(layer.msdyn_solutionname).trim().toLowerCase() === "active";
+
 const loadAllData = async (fullUrl: string) => {
   const allRecords: any[] = [];
 
@@ -26,7 +51,7 @@ const loadAllData = async (fullUrl: string) => {
       relativePath = fullUrl.replace(apiRegex, "");
     }
 
-    const response = await window.dataverseAPI.queryData(relativePath);
+    const response = await getDataverseAPI().queryData(relativePath);
 
     allRecords.push(...response.value);
 
@@ -71,6 +96,50 @@ export const loadSolutions = async (
   );
 
   return mapped;
+};
+
+export type SystemUser = {
+  systemuserid: string;
+  fullname: string;
+  domainname?: string;
+  internalemailaddress?: string;
+  isdisabled?: boolean;
+};
+
+export const loadSystemUser = async (userId: string): Promise<SystemUser | null> => {
+  const normalizedUserId = userId.trim().replace(/[{}]/g, "");
+  if (!normalizedUserId) {
+    throw new Error("A user ID is required.");
+  }
+
+  const url =
+    `systemusers(${normalizedUserId})?$select=systemuserid,fullname,domainname,` +
+    "internalemailaddress,isdisabled";
+  try {
+    const response = await getDataverseAPI().queryData(url);
+    const responseData = response as unknown as
+      | Record<string, unknown>
+      | { value?: Record<string, unknown>[] };
+    const record = Array.isArray((responseData as { value?: unknown }).value)
+      ? (responseData as { value: Record<string, unknown>[] }).value[0]
+      : (responseData as Record<string, unknown>);
+    if (!record) return null;
+    if (!record.systemuserid) return null;
+    return {
+      systemuserid: String(record.systemuserid),
+      fullname: String(record.fullname ?? ""),
+      domainname: record.domainname ? String(record.domainname) : undefined,
+      internalemailaddress: record.internalemailaddress
+        ? String(record.internalemailaddress)
+        : undefined,
+      isdisabled:
+        typeof record.isdisabled === "boolean" ? record.isdisabled : undefined,
+    };
+  } catch (error) {
+    const message = (error as Error).message;
+    if (/404|not found/i.test(message)) return null;
+    throw error;
+  }
 };
 
 export const loadComponentTypeDefinitions = async (): Promise<
@@ -332,7 +401,7 @@ export const loadComponentLayers = async (
     msdyn_componentlayerid: r.msdyn_componentlayerid,
     msdyn_componentid: r.msdyn_componentid,
     msdyn_name: r.msdyn_name,
-    msdyn_solutionname: r.msdyn_solutionname,
+    msdyn_solutionname: getStringValue(r.msdyn_solutionname),
     msdyn_solutioncomponentname: r.msdyn_solutioncomponentname,
     msdyn_order: r.msdyn_order,
     msdyn_componentjson: r.msdyn_componentjson,
@@ -387,7 +456,7 @@ export const loadActiveLayersForComponents = async (
               msdyn_componentlayerid: layer.msdyn_componentlayerid,
               msdyn_componentid: layer.msdyn_componentid,
               msdyn_name: layer.msdyn_name,
-              msdyn_solutionname: layer.msdyn_solutionname,
+               msdyn_solutionname: getStringValue(layer.msdyn_solutionname),
               msdyn_solutioncomponentname: layer.msdyn_solutioncomponentname,
               msdyn_order: layer.msdyn_order,
             });
@@ -405,6 +474,38 @@ export const loadActiveLayersForComponents = async (
     onProgress?.(processed, total);
     logger.info(
       `[RESULT] loadActiveLayersForComponents: ${processed}/${total} components queried, ${layersByComponentId.size} with layers so far`,
+    );
+  }
+
+  return layersByComponentId;
+};
+
+export const loadActiveLayerDetailsForComponents = async (
+  components: SolutionComponent[],
+): Promise<Map<string, ComponentLayer[]>> => {
+  const layersByComponentId = new Map<string, ComponentLayer[]>();
+  const PARALLEL_SIZE = 20;
+
+  for (let i = 0; i < components.length; i += PARALLEL_SIZE) {
+    const chunk = components.slice(i, i + PARALLEL_SIZE);
+    await Promise.all(
+      chunk.map(async (component) => {
+        try {
+          const layers = await loadComponentLayers(
+            component.objectid,
+            component.componenttype,
+            component.componenttypeName,
+          );
+          const activeLayers = layers.filter(isActiveLayer);
+          if (activeLayers.length > 0) {
+            layersByComponentId.set(component.objectid.toLowerCase(), activeLayers);
+          }
+        } catch (error) {
+          logger.warning(
+            `Could not load active layer details for ${component.objectid}: ${(error as Error).message}`,
+          );
+        }
+      }),
     );
   }
 

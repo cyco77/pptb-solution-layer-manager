@@ -46,6 +46,42 @@ A Power Platform Toolbox (PPTB) tool to inspect Dataverse solution component lay
 - Use Dataverse `BulkRemoveActiveCustomizationsAsync` to remove multiple active customizations in one operation
 - Export an active layer report as Markdown
 
+## MCP / AI Agent Integration
+
+Solution Layer Manager can be discovered and invoked through the Power
+Platform ToolBox MCP server. The executable MCP contract is defined in
+[`pptb.config.json`](./pptb.config.json), while the supported operations and
+payload details are documented in [`mcp-features.md`](./mcp-features.md).
+
+### Headless Invocation
+
+The headless runtime supports the following operations:
+
+- `loadSolutionComponents` - Load all solution components for a solution.
+- `loadActiveLayers` - Load the active layers for selected components.
+- `loadActiveLayerChanges` - Return the changes stored on active layers,
+  including the resolved name of the user who made each change when available.
+- `resolveUser` - Resolve a Dataverse system user by `systemuserid`.
+
+Solution operations accept the following selectors:
+
+- `solutionId` - Exact Dataverse solution ID.
+- `solutionName` - Solution display name.
+- `solutionUniqueName` - Exact solution unique name.
+
+Solution names are matched case-insensitively while ignoring spaces, hyphens,
+and underscores. Component results can optionally be filtered with
+`componentTypes`, `componentTypeNames`, or `componentIds`.
+
+The `resolveUser` operation requires `userId` instead of a solution selector
+and returns the system user's ID, display name, domain name, email address,
+and disabled state. If a user cannot be found, the response contains
+`user: null`.
+
+The compiled headless entry point is `dist/headless.js`. Install or update the
+tool in Power Platform ToolBox after changing the MCP contract so discovery
+uses the current `pptb.config.json`.
+
 ## License
 
 MIT
