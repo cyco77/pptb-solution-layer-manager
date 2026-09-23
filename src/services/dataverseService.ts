@@ -53,7 +53,13 @@ const loadAllData = async (fullUrl: string) => {
 
     const response = await getDataverseAPI().queryData(relativePath);
 
-    allRecords.push(...response.value);
+    const responseData = response as unknown as Record<string, unknown>;
+    const records = Array.isArray(responseData.value)
+      ? responseData.value
+      : Object.keys(responseData).length > 0
+        ? [responseData]
+        : [];
+    allRecords.push(...records);
 
     fullUrl = (response as any)["@odata.nextLink"] || null;
   }
@@ -63,7 +69,6 @@ const loadAllData = async (fullUrl: string) => {
 
 export const loadSolutions = async (
   managedFilter: ManagedFilter = "managed",
-  includeHidden = false,
 ): Promise<Solution[]> => {
   const filters: string[] = [];
 
@@ -72,15 +77,22 @@ export const loadSolutions = async (
   } else if (managedFilter === "unmanaged") {
     filters.push("ismanaged eq false");
   }
-  if (!includeHidden) {
-    filters.push("isvisible eq true");
-  }
+  filters.push("isvisible eq true");
 
   const filterStr =
     filters.length > 0 ? `&$filter=${filters.join(" and ")}` : "";
-  const url = `solutions?$select=solutionid,uniquename,friendlyname,version,ismanaged,isvisible&$orderby=friendlyname${filterStr}`;
+  const url = `solutions?$select=solutionid,uniquename,friendlyname,version,ismanaged,isvisible,_publisherid_value&$orderby=friendlyname${filterStr}`;
 
-  const records = await loadAllData(url);
+  const [records, publishers] = await Promise.all([
+    loadAllData(url),
+    loadAllData("publishers?$select=publisherid,friendlyname"),
+  ]);
+  const publisherNames = new Map(
+    publishers.map((publisher: any) => [
+      String(publisher.publisherid),
+      String(publisher.friendlyname ?? ""),
+    ]),
+  );
 
   const mapped = records.map((r: any) => ({
     solutionid: r.solutionid,
@@ -89,10 +101,16 @@ export const loadSolutions = async (
     version: r.version,
     ismanaged: r.ismanaged,
     isvisible: r.isvisible,
+    publisherId: r._publisherid_value
+      ? String(r._publisherid_value)
+      : undefined,
+    publisherName: r._publisherid_value
+      ? publisherNames.get(String(r._publisherid_value))
+      : undefined,
   }));
 
   logger.info(
-    `[RESULT] loadSolutions: Loaded ${mapped.length} solutions (managedFilter=${managedFilter}, includeHidden=${includeHidden})`,
+    `[RESULT] loadSolutions: Loaded ${mapped.length} solutions (managedFilter=${managedFilter}, visible only)`,
   );
 
   return mapped;
@@ -106,7 +124,9 @@ export type SystemUser = {
   isdisabled?: boolean;
 };
 
-export const loadSystemUser = async (userId: string): Promise<SystemUser | null> => {
+export const loadSystemUser = async (
+  userId: string,
+): Promise<SystemUser | null> => {
   const normalizedUserId = userId.trim().replace(/[{}]/g, "");
   if (!normalizedUserId) {
     throw new Error("A user ID is required.");
@@ -118,8 +138,7 @@ export const loadSystemUser = async (userId: string): Promise<SystemUser | null>
   try {
     const response = await getDataverseAPI().queryData(url);
     const responseData = response as unknown as
-      | Record<string, unknown>
-      | { value?: Record<string, unknown>[] };
+      Record<string, unknown> | { value?: Record<string, unknown>[] };
     const record = Array.isArray((responseData as { value?: unknown }).value)
       ? (responseData as { value: Record<string, unknown>[] }).value[0]
       : (responseData as Record<string, unknown>);
@@ -246,12 +265,25 @@ export const loadComponentTypeDefinitions = async (): Promise<
 };
 
 export const loadSolutionComponents = async (
-  solutionId: string,
+  solutionIds: string[] | string,
   componentTypeDefs: ComponentTypeDefinition[],
+  solutions: Solution[] = [],
 ): Promise<SolutionComponent[]> => {
-  const url = `solutioncomponents?$select=solutioncomponentid,objectid,componenttype&$filter=_solutionid_value eq ${solutionId}&$orderby=componenttype`;
+  const normalizedSolutionIds =
+    typeof solutionIds === "string" ? [solutionIds] : solutionIds;
+  if (normalizedSolutionIds.length === 0) return [];
+  const filter = normalizedSolutionIds
+    .map((solutionId) => `_solutionid_value eq ${solutionId}`)
+    .join(" or ");
+  const url = `solutioncomponents?$select=solutioncomponentid,objectid,componenttype,_solutionid_value&$filter=${filter}&$orderby=componenttype`;
 
   const records = await loadAllData(url);
+  const solutionNames = new Map(
+    solutions.map((solution) => [
+      solution.solutionid.toLowerCase(),
+      solution.friendlyname,
+    ]),
+  );
 
   const result = records.map((r: any) => {
     const typeNum: number = r.componenttype;
@@ -263,11 +295,14 @@ export const loadSolutionComponents = async (
       objectid: r.objectid,
       componenttype: typeNum,
       componenttypeName: def?.name ?? `Type ${typeNum}`,
+      solutionName:
+        solutionNames.get(String(r._solutionid_value ?? "").toLowerCase()) ??
+        "Unknown solution",
     };
   });
 
   logger.info(
-    `[RESULT] loadSolutionComponents: Loaded ${result.length} components for solution ${solutionId}`,
+    `[RESULT] loadSolutionComponents: Loaded ${result.length} components for ${normalizedSolutionIds.length} solution(s)`,
   );
 
   return result;
@@ -456,7 +491,7 @@ export const loadActiveLayersForComponents = async (
               msdyn_componentlayerid: layer.msdyn_componentlayerid,
               msdyn_componentid: layer.msdyn_componentid,
               msdyn_name: layer.msdyn_name,
-               msdyn_solutionname: getStringValue(layer.msdyn_solutionname),
+              msdyn_solutionname: getStringValue(layer.msdyn_solutionname),
               msdyn_solutioncomponentname: layer.msdyn_solutioncomponentname,
               msdyn_order: layer.msdyn_order,
             });
@@ -498,7 +533,10 @@ export const loadActiveLayerDetailsForComponents = async (
           );
           const activeLayers = layers.filter(isActiveLayer);
           if (activeLayers.length > 0) {
-            layersByComponentId.set(component.objectid.toLowerCase(), activeLayers);
+            layersByComponentId.set(
+              component.objectid.toLowerCase(),
+              activeLayers,
+            );
           }
         } catch (error) {
           logger.warning(
@@ -561,7 +599,9 @@ const wait = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-const waitForAsyncOperation = async (asyncOperationId: string): Promise<void> => {
+const waitForAsyncOperation = async (
+  asyncOperationId: string,
+): Promise<void> => {
   const maxAttempts = 120;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {

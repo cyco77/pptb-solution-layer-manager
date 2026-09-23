@@ -6,12 +6,7 @@ import {
   Spinner,
   tokens,
 } from "@fluentui/react-components";
-import {
-  DatabaseSearchRegular,
-  DeleteRegular,
-  DismissRegular,
-  DocumentBulletListRegular,
-} from "@fluentui/react-icons";
+import { DatabaseSearchRegular, DismissRegular } from "@fluentui/react-icons";
 
 export type ComponentTypeSummary = {
   componenttype: number;
@@ -29,8 +24,6 @@ interface IComponentTypesListProps {
   layerLoadProgress: { current: number; total: number } | null;
   onLoadLayers: () => void;
   onCancel?: () => void;
-  onRemoveAll?: () => void;
-  onCreateDocumentation?: () => void;
   onTypeActivate: (typeName: string) => void;
   onSelectionChange: (selectedNames: Set<string>) => void;
 }
@@ -137,18 +130,12 @@ export const ComponentTypesList: React.FC<IComponentTypesListProps> = ({
   layerLoadProgress,
   onLoadLayers,
   onCancel,
-  onRemoveAll,
-  onCreateDocumentation,
   onTypeActivate,
   onSelectionChange,
 }) => {
   const styles = useStyles();
 
   const layersEverLoaded = summaries.some((s) => s.activeLayerCount !== null);
-  const hasAnyActiveLayers = summaries.some(
-    (s) => (s.activeLayerCount ?? 0) > 0,
-  );
-
   return (
     <div className={styles.root}>
       {/* Header */}
@@ -257,27 +244,6 @@ export const ComponentTypesList: React.FC<IComponentTypesListProps> = ({
             >
               {layersEverLoaded ? "Reload Active Layers" : "Load Active Layers"}
             </Button>
-            {hasAnyActiveLayers && (
-              <>
-                <Button
-                  appearance="subtle"
-                  icon={<DeleteRegular />}
-                  onClick={onRemoveAll}
-                  size="small"
-                  style={{ color: tokens.colorPaletteRedForeground1 }}
-                  title="Remove all active layers"
-                  disabled={isDeletingLayers}
-                />
-                <Button
-                  appearance="subtle"
-                  icon={<DocumentBulletListRegular />}
-                  onClick={onCreateDocumentation}
-                  size="small"
-                  title="Create documentation"
-                  disabled={isDeletingLayers}
-                />
-              </>
-            )}
           </>
         )}
       </div>

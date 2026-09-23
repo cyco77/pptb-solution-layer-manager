@@ -5,10 +5,17 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { makeStyles, Spinner, Text, tokens } from "@fluentui/react-components";
+import {
+  Button,
+  makeStyles,
+  Spinner,
+  Text,
+  tokens,
+} from "@fluentui/react-components";
+import { DocumentBulletListRegular } from "@fluentui/react-icons";
 import { Filter } from "./Filter";
 import { ComponentTypesList, ComponentTypeSummary } from "./ComponentTypesList";
-import { DataGridView } from "./DataGridView";
+import { ActiveLayersTree } from "./ActiveLayersTree";
 import { LayersPanel } from "./LayersPanel";
 import { DeletionProgressModal } from "./DeletionProgressModal";
 import { logger } from "../services/loggerService";
@@ -43,6 +50,10 @@ const useStyles = makeStyles({
   },
   filterBar: {
     flexShrink: 0,
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: "12px",
   },
   content: {
     flex: 1,
@@ -86,9 +97,7 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
   // Solutions
   const [solutions, setSolutions] = useState<Solution[]>([]);
   const [isLoadingSolutions, setIsLoadingSolutions] = useState(false);
-  const [managedFilter, setManagedFilter] =
-    useState<ManagedFilter>("managed");
-  const [includeHidden, setIncludeHidden] = useState(false);
+  const [managedFilter, setManagedFilter] = useState<ManagedFilter>("managed");
 
   // Component type definitions
   const [componentTypeDefs, setComponentTypeDefs] = useState<
@@ -96,9 +105,10 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
   >([]);
 
   // All components for selected solution
-  const [selectedSolutionId, setSelectedSolutionId] = useState<string | null>(
-    null,
-  );
+  const [selectedSolutionIds, setSelectedSolutionIds] = useState<string[]>([]);
+  const [selectedPublisherNames, setSelectedPublisherNames] = useState<
+    string[]
+  >([]);
   const [allComponents, setAllComponents] = useState<ComponentWithLayers[]>([]);
   const [isLoadingComponents, setIsLoadingComponents] = useState(false);
 
@@ -117,6 +127,15 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
   const [activeLayersLoaded, setActiveLayersLoaded] = useState(false);
   const cancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
   const metadataLoadingRef = useRef<Promise<ComponentTypeDefinition[]>>();
+
+  const resetComponentSelection = useCallback(() => {
+    setAllComponents([]);
+    setActiveTypeName(null);
+    setSelectedTypeNames(new Set());
+    setSelectedComponentId(null);
+    setIsLayersPanelOpen(false);
+    setActiveLayersLoaded(false);
+  }, []);
 
   // Layer deletion
   const [isDeletingLayers, setIsDeletingLayers] = useState(false);
@@ -137,6 +156,10 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
   useEffect(() => {
     if (!connection) return;
 
+    setSelectedPublisherNames([]);
+    setSelectedSolutionIds([]);
+    resetComponentSelection();
+
     // Load metadata
     metadataLoadingRef.current = loadComponentTypeDefinitions()
       .then((defs) => {
@@ -152,7 +175,7 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
     const loadSols = async () => {
       try {
         setIsLoadingSolutions(true);
-        const sols = await loadSolutions(managedFilter, includeHidden);
+        const sols = await loadSolutions(managedFilter);
         setSolutions(sols);
       } catch (error) {
         logger.error(`Error loading solutions: ${(error as Error).message}`);
@@ -167,14 +190,17 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
     };
 
     loadSols();
-  }, [connection, managedFilter, includeHidden]);
+  }, [connection, managedFilter, resetComponentSelection]);
 
   // ---- Reload solutions (for manual refresh via Filter) ----
   const handleReloadSolutions = useCallback(async () => {
     if (!connection) return;
     try {
+      setSelectedPublisherNames([]);
+      setSelectedSolutionIds([]);
+      resetComponentSelection();
       setIsLoadingSolutions(true);
-      const sols = await loadSolutions(managedFilter, includeHidden);
+      const sols = await loadSolutions(managedFilter);
       setSolutions(sols);
     } catch (error) {
       logger.error(`Error loading solutions: ${(error as Error).message}`);
@@ -186,20 +212,14 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
     } finally {
       setIsLoadingSolutions(false);
     }
-  }, [connection, managedFilter, includeHidden]);
+  }, [connection, managedFilter, resetComponentSelection]);
 
-  // ---- Select solution → load component stubs ----
-  const handleSolutionChanged = useCallback(
-    async (solutionId: string | null) => {
-      setSelectedSolutionId(solutionId);
-      setAllComponents([]);
-      setActiveTypeName(null);
-      setSelectedTypeNames(new Set());
-      setSelectedComponentId(null);
-      setIsLayersPanelOpen(false);
-      setActiveLayersLoaded(false);
+  // ---- Load solution components for the selected publisher/solution filters ----
+  const handleLoadSolutionComponents = useCallback(
+    async (solutionIds: string[]) => {
+      resetComponentSelection();
 
-      if (!solutionId) return;
+      if (solutionIds.length === 0) return;
 
       // Wait for metadata to be ready if still loading
       if (metadataLoadingRef.current) {
@@ -219,8 +239,9 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
       try {
         setIsLoadingComponents(true);
         const comps = await loadSolutionComponents(
-          solutionId,
+          solutionIds,
           componentTypeDefs,
+          solutions,
         );
         const withLayers: ComponentWithLayers[] = comps.map((c) => ({
           ...c,
@@ -257,7 +278,37 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
         setIsLoadingComponents(false);
       }
     },
-    [componentTypeDefs],
+    [componentTypeDefs, resetComponentSelection, solutions],
+  );
+
+  const handlePublisherChanged = useCallback(
+    (publisherNames: string[]) => {
+      setSelectedPublisherNames(publisherNames);
+      const matchingSolutionIds = solutions
+        .filter((solution) =>
+          publisherNames.includes(solution.publisherName ?? ""),
+        )
+        .map((solution) => solution.solutionid);
+      setSelectedSolutionIds(matchingSolutionIds);
+      void handleLoadSolutionComponents(matchingSolutionIds);
+    },
+    [handleLoadSolutionComponents, solutions],
+  );
+
+  const handleSolutionsChanged = useCallback(
+    (solutionIds: string[]) => {
+      const effectiveSolutionIds =
+        solutionIds.length > 0
+          ? solutionIds
+          : solutions
+              .filter((solution) =>
+                selectedPublisherNames.includes(solution.publisherName ?? ""),
+              )
+              .map((solution) => solution.solutionid);
+      setSelectedSolutionIds(effectiveSolutionIds);
+      void handleLoadSolutionComponents(effectiveSolutionIds);
+    },
+    [handleLoadSolutionComponents, selectedPublisherNames, solutions],
   );
 
   // ---- Load active layers for selected component types ----
@@ -293,10 +344,13 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
             layerMap.get(c.objectid.toLowerCase()) ??
             layerMap.get(c.objectid) ??
             [];
-          const hasActive = layers.some(
-            (l) => l.msdyn_solutionname?.toLowerCase() === "active",
+          const activeLayers = layers.filter(
+            (layer) => layer.msdyn_solutionname?.toLowerCase() === "active",
           );
-          return { ...c, layers: hasActive ? layers : null };
+          return {
+            ...c,
+            layers: activeLayers.length > 0 ? activeLayers : null,
+          };
         }),
       );
       setActiveLayersLoaded(true);
@@ -318,59 +372,6 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
     setIsLoadingLayers(false);
     setLayerLoadProgress(null);
   }, []);
-
-  const handleRemoveAllActiveLayers = useCallback(async () => {
-    const activeComps = allComponents.filter(
-      (c) => c.layers !== null && c.layers.length > 0,
-    );
-    if (activeComps.length === 0) return;
-    if (
-      !window.confirm(
-        `Remove active layers from ${activeComps.length} component(s)?\nThis cannot be undone.`,
-      )
-    )
-      return;
-
-    setIsDeletingLayers(true);
-    setDeletionProgress({ current: activeComps.length, total: activeComps.length });
-
-    try {
-      await bulkRevertActiveLayers(
-        activeComps.map((comp) => ({
-          componentType: comp.componenttype,
-          componentId: comp.objectid,
-          componentTypeName: comp.componenttypeName,
-        })),
-      );
-
-      setAllComponents((prev) =>
-        prev.map((c) =>
-          activeComps.some(
-            (activeComp) =>
-              activeComp.solutioncomponentid === c.solutioncomponentid,
-          )
-            ? { ...c, layers: null }
-            : c,
-        ),
-      );
-      setActiveLayersLoaded(false);
-
-      await window.toolboxAPI.utils.showNotification({
-        title: "Active Layers Removal",
-        body: `Successfully removed ${activeComps.length} active layer(s).`,
-        type: "info",
-      });
-    } catch (error) {
-      await window.toolboxAPI.utils.showNotification({
-        title: "Active Layers Removal",
-        body: `Failed to remove active layers: ${(error as Error).message}`,
-        type: "error",
-      });
-    } finally {
-      setIsDeletingLayers(false);
-      setDeletionProgress(null);
-    }
-  }, [allComponents]);
 
   const handleDeleteSelectedLayers = useCallback(
     async (selected: ComponentWithLayers[]) => {
@@ -426,10 +427,10 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
 
   const handleCreateDocumentation = useCallback(() => {
     const solutionName =
-      solutions.find((s) => s.solutionid === selectedSolutionId)
-        ?.friendlyname ??
-      selectedSolutionId ??
-      "Unknown";
+      solutions
+        .filter((s) => selectedSolutionIds.includes(s.solutionid))
+        .map((solution) => solution.friendlyname)
+        .join(", ") || "Unknown";
     const date = new Date().toISOString().split("T")[0];
     const activeComps = allComponents.filter(
       (c) => c.layers !== null && c.layers.length > 0,
@@ -479,7 +480,7 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [allComponents, solutions, selectedSolutionId]);
+  }, [allComponents, solutions, selectedSolutionIds]);
 
   // ---- Select component → load detail layers ----
   const handleSelectionChange = useCallback(
@@ -549,13 +550,21 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
       .sort((a, b) => a.typeName.localeCompare(b.typeName));
   }, [allComponents, activeLayersLoaded]);
 
-  // ---- Components shown in right panel ----
-  const rightPanelComponents = useMemo<ComponentWithLayers[]>(() => {
-    if (!activeTypeName || !activeLayersLoaded) return [];
-    return allComponents.filter(
-      (c) => c.componenttypeName === activeTypeName && c.layers !== null,
-    );
-  }, [allComponents, activeTypeName, activeLayersLoaded]);
+  // ---- Active layers grouped by their solution component type ----
+  const componentGroups = useMemo(() => {
+    if (!activeLayersLoaded) return [];
+    return [...selectedTypeNames]
+      .sort((a, b) => a.localeCompare(b))
+      .map((typeName) => ({
+        typeName,
+        components: allComponents.filter(
+          (component) =>
+            component.componenttypeName === typeName &&
+            component.layers !== null,
+        ),
+      }))
+      .filter((group) => group.components.length > 0);
+  }, [allComponents, activeLayersLoaded, selectedTypeNames]);
 
   const selectedComponent =
     allComponents.find((c) => c.solutioncomponentid === selectedComponentId) ??
@@ -567,16 +576,30 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
       <div className={styles.filterBar}>
         <Filter
           solutions={solutions}
-          selectedSolutionId={selectedSolutionId}
+          selectedPublisherNames={selectedPublisherNames}
+          selectedSolutionIds={selectedSolutionIds}
           managedFilter={managedFilter}
-          includeHidden={includeHidden}
           isLoadingSolutions={isLoadingSolutions}
           isDeletingLayers={isDeletingLayers}
-          onSolutionChanged={handleSolutionChanged}
+          onPublisherChanged={handlePublisherChanged}
+          onSolutionsChanged={handleSolutionsChanged}
           onManagedFilterChanged={setManagedFilter}
-          onIncludeHiddenChanged={(v) => setIncludeHidden(v)}
           onReloadSolutions={handleReloadSolutions}
         />
+        {activeLayersLoaded &&
+          allComponents.some(
+            (component) =>
+              component.layers !== null && component.layers.length > 0,
+          ) && (
+            <Button
+              appearance="subtle"
+              icon={<DocumentBulletListRegular />}
+              onClick={handleCreateDocumentation}
+              disabled={isDeletingLayers}
+            >
+              Export active layers
+            </Button>
+          )}
       </div>
 
       {/* Content: left type list + right components grid */}
@@ -587,9 +610,11 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
             <div className={styles.centerMessage}>
               <Spinner label="Loading components…" />
             </div>
-          ) : !selectedSolutionId ? (
+          ) : selectedSolutionIds.length === 0 ? (
             <div className={styles.centerMessage}>
-              <Text>Select a solution above.</Text>
+              <Text>
+                Select one or more solutions above to load their components.
+              </Text>
             </div>
           ) : typeSummaries.length === 0 ? (
             <div className={styles.centerMessage}>
@@ -605,8 +630,6 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
               layerLoadProgress={layerLoadProgress}
               onLoadLayers={handleLoadActiveLayers}
               onCancel={handleCancelLoadLayers}
-              onRemoveAll={handleRemoveAllActiveLayers}
-              onCreateDocumentation={handleCreateDocumentation}
               onTypeActivate={(typeName) => {
                 setActiveTypeName(typeName);
                 setSelectedComponentId(null);
@@ -619,25 +642,29 @@ export const Overview: React.FC<IOverviewProps> = ({ connection }) => {
 
         {/* Right panel */}
         <div className={styles.rightPanel}>
-          {!activeTypeName ? (
+          {selectedTypeNames.size === 0 ? (
             <div className={styles.centerMessage}>
               <Text>
-                {selectedSolutionId
-                  ? "Select a component type on the left to view its components."
-                  : "Select a solution to get started."}
+                {selectedSolutionIds.length > 0
+                  ? "Select one or more solution components on the left."
+                  : "Select one or more solutions to get started."}
               </Text>
             </div>
           ) : !activeLayersLoaded ? (
             <div className={styles.centerMessage}>
               <Text>Load active layers to see components.</Text>
             </div>
+          ) : componentGroups.length === 0 ? (
+            <div className={styles.centerMessage}>
+              <Text>
+                No active layers found for the selected solution components.
+              </Text>
+            </div>
           ) : (
-            <DataGridView
-              components={rightPanelComponents}
-              typeName={activeTypeName}
-              selectedId={selectedComponentId}
-              onSelectionChange={handleSelectionChange}
+            <ActiveLayersTree
+              groups={componentGroups}
               isDeletingLayers={isDeletingLayers}
+              onOpenDetails={handleSelectionChange}
               onDeleteSelected={handleDeleteSelectedLayers}
             />
           )}

@@ -5,4 +5,6 @@ export type Solution = {
   version: string;
   ismanaged: boolean;
   isvisible: boolean;
+  publisherId?: string;
+  publisherName?: string;
 };

@@ -27,7 +27,7 @@ A Power Platform Toolbox (PPTB) tool to inspect Dataverse solution component lay
 - Load and browse 130+ Dataverse component types
 - See component counts per type and identify which components have active layers
 - Load active layers for selected component types
-- Review components with active layers in a grid view
+- Review components with active layers in a tree view
 - Open a layer drawer for each component to inspect:
   - All available layers
   - Layer order and active layer position
@@ -42,7 +42,6 @@ A Power Platform Toolbox (PPTB) tool to inspect Dataverse solution component lay
   - Expand nested objects and arrays
 - Remove active layers for:
   - Selected components
-  - All loaded components with active layers
 - Use Dataverse `BulkRemoveActiveCustomizationsAsync` to remove multiple active customizations in one operation
 - Export an active layer report as Markdown
 

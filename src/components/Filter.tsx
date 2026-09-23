@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   JSXElement,
   OptionOnSelectData,
@@ -10,7 +11,6 @@ import {
   Dropdown,
   makeStyles,
   Option,
-  Switch,
   useId,
   tokens,
 } from "@fluentui/react-components";
@@ -20,14 +20,20 @@ import { ManagedFilter } from "../types/solutionFilters";
 
 export interface IFilterProps {
   solutions: Solution[];
-  selectedSolutionId: string | null;
+  selectedPublisherNames?: string[];
+  selectedSolutionIds?: string[];
+  /** @deprecated Kept for compatibility with integrations using the earlier single-solution filter. */
+  selectedSolutionId?: string | null;
+  /** @deprecated The hidden-solution toggle was removed; solutions are now always visible-only. */
+  includeHidden?: boolean;
   managedFilter: ManagedFilter;
-  includeHidden: boolean;
   isLoadingSolutions: boolean;
   isDeletingLayers?: boolean;
-  onSolutionChanged: (solutionId: string | null) => void;
+  onPublisherChanged?: (publisherNames: string[]) => void;
+  onSolutionsChanged?: (solutionIds: string[]) => void;
+  /** @deprecated Kept for compatibility with integrations using the earlier single-solution filter. */
+  onSolutionChanged?: (solutionId: string | null) => void;
   onManagedFilterChanged: (value: ManagedFilter) => void;
-  onIncludeHiddenChanged: (value: boolean) => void;
   onReloadSolutions: () => void;
 }
 
@@ -37,77 +43,138 @@ const useStyles = makeStyles({
     gap: "12px",
     alignItems: "flex-end",
     flexWrap: "wrap",
+    minWidth: 0,
   },
   field: {
     display: "grid",
     justifyItems: "start",
     gap: "2px",
+    minWidth: 0,
+    flex: "0 0 auto",
   },
   label: {
     fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
   },
-  combobox: {
-    minWidth: "320px",
+  filterDropdown: {
+    width: "240px",
+    minWidth: "240px",
+    maxWidth: "240px",
+    flex: "0 0 240px",
+    boxSizing: "border-box",
+    "& button": {
+      maxWidth: "100%",
+      overflow: "hidden",
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+    },
+  },
+  solutionDropdown: {
+    width: "420px",
+    minWidth: "420px",
+    maxWidth: "420px",
+    flex: "0 0 420px",
+    boxSizing: "border-box",
+    "& button": {
+      maxWidth: "100%",
+      overflow: "hidden",
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+    },
   },
   managedFilterDropdown: {
+    width: "160px",
     minWidth: "160px",
+    maxWidth: "160px",
+    flex: "0 0 160px",
   },
   optionContent: {
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
     gap: tokens.spacingVerticalXXS,
     width: "100%",
+    minWidth: 0,
+    overflow: "hidden",
   },
   optionName: {
     color: tokens.colorNeutralForeground1,
     lineHeight: tokens.lineHeightBase300,
+    minWidth: 0,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   optionMeta: {
     display: "flex",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: tokens.spacingHorizontalS,
     width: "100%",
+    minWidth: 0,
     fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
     lineHeight: tokens.lineHeightBase200,
   },
   optionVersion: {
     fontSize: tokens.fontSizeBase200,
+    minWidth: 0,
+    overflowWrap: "anywhere",
   },
   optionManagedState: {
     marginLeft: "auto",
+    flexShrink: 0,
     fontSize: tokens.fontSizeBase200,
   },
-  controls: {
-    display: "flex",
-    gap: "12px",
-    alignItems: "flex-end",
-    flexWrap: "wrap",
-  },
-  switches: {
-    display: "flex",
-    gap: "4px",
-    alignItems: "center",
+  solutionListbox: {
+    width: "420px",
+    minWidth: "420px",
+    maxWidth: "420px",
+    overflowX: "hidden",
+    boxSizing: "border-box",
   },
 });
 
 export const Filter = (props: IFilterProps): JSXElement => {
   const solutionComboId = useId("solution-combo");
+  const publisherComboId = useId("publisher-combo");
   const managedFilterId = useId("managed-filter");
   const styles = useStyles();
   const { isDeletingLayers = false } = props;
-
-  const selectedSolution = props.solutions.find(
-    (s) => s.solutionid === props.selectedSolutionId,
-  );
+  const [solutionQuery, setSolutionQuery] = useState("");
+  const selectedPublisherNames = props.selectedPublisherNames ?? [];
+  const selectedSolutionIds =
+    props.selectedSolutionIds ??
+    (props.selectedSolutionId ? [props.selectedSolutionId] : []);
+  const selectedSolutionNames = selectedSolutionIds
+    .map(
+      (id) =>
+        props.solutions.find((solution) => solution.solutionid === id)
+          ?.friendlyname,
+    )
+    .filter((name): name is string => Boolean(name));
 
   const onSolutionSelect = (
     _event: SelectionEvents,
     data: OptionOnSelectData,
   ) => {
-    props.onSolutionChanged(data.optionValue ?? null);
+    props.onSolutionsChanged?.(data.selectedOptions);
+    props.onSolutionChanged?.(data.selectedOptions[0] ?? null);
+    setSolutionQuery("");
   };
+
+  const publisherNames = [
+    ...new Set(
+      props.solutions
+        .map((solution) => solution.publisherName)
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+  const availableSolutions = props.solutions.filter(
+    (solution) =>
+      selectedPublisherNames.length === 0 ||
+      (solution.publisherName &&
+        selectedPublisherNames.includes(solution.publisherName)),
+  );
 
   const onManagedFilterSelect = (
     _event: SelectionEvents,
@@ -130,22 +197,69 @@ export const Filter = (props: IFilterProps): JSXElement => {
   return (
     <div className={styles.root}>
       <div className={styles.field}>
+        <label htmlFor={publisherComboId} className={styles.label}>
+          Publisher
+        </label>
+        <Dropdown
+          id={publisherComboId}
+          multiselect
+          placeholder="Filter publishers…"
+          className={styles.filterDropdown}
+          selectedOptions={selectedPublisherNames}
+          value={selectedPublisherNames.join(", ")}
+          disabled={props.isLoadingSolutions || isDeletingLayers}
+          onOptionSelect={(_event, data) =>
+            props.onPublisherChanged?.(data.selectedOptions)
+          }
+        >
+          {publisherNames.map((name) => (
+            <Option key={name} value={name}>
+              {name}
+            </Option>
+          ))}
+        </Dropdown>
+      </div>
+      <div className={styles.field}>
+        <label htmlFor={managedFilterId} className={styles.label}>
+          Type
+        </label>
+        <Dropdown
+          id={managedFilterId}
+          value={managedFilterLabel}
+          selectedOptions={[props.managedFilter]}
+          className={styles.managedFilterDropdown}
+          disabled={props.isLoadingSolutions || isDeletingLayers}
+          onOptionSelect={onManagedFilterSelect}
+        >
+          <Option value="managed" text="Managed">
+            Managed
+          </Option>
+          <Option value="unmanaged" text="Unmanaged">
+            Unmanaged
+          </Option>
+          <Option value="all" text="All">
+            All
+          </Option>
+        </Dropdown>
+      </div>
+      <div className={styles.field}>
         <label htmlFor={solutionComboId} className={styles.label}>
           Solution
         </label>
         <div style={{ display: "flex", gap: "4px" }}>
           <Combobox
             id={solutionComboId}
-            placeholder="Select a solution…"
+            multiselect
+            placeholder="Filter solutions…"
             onOptionSelect={onSolutionSelect}
-            className={styles.combobox}
-            value={selectedSolution?.friendlyname ?? ""}
-            selectedOptions={
-              props.selectedSolutionId ? [props.selectedSolutionId] : []
-            }
+            onChange={(event) => setSolutionQuery(event.target.value)}
+            className={styles.solutionDropdown}
+            listbox={{ className: styles.solutionListbox }}
+            value={solutionQuery || selectedSolutionNames.join(", ")}
+            selectedOptions={selectedSolutionIds}
             disabled={props.isLoadingSolutions || isDeletingLayers}
           >
-            {props.solutions.map((s) => (
+            {availableSolutions.map((s) => (
               <Option
                 key={s.solutionid}
                 value={s.solutionid}
@@ -173,41 +287,6 @@ export const Filter = (props: IFilterProps): JSXElement => {
             title="Reload solutions"
             onClick={props.onReloadSolutions}
             disabled={props.isLoadingSolutions || isDeletingLayers}
-          />
-        </div>
-      </div>
-
-      <div className={styles.controls}>
-        <div className={styles.field}>
-          <label htmlFor={managedFilterId} className={styles.label}>
-            Type
-          </label>
-          <Dropdown
-            id={managedFilterId}
-            value={managedFilterLabel}
-            selectedOptions={[props.managedFilter]}
-            className={styles.managedFilterDropdown}
-            disabled={props.isLoadingSolutions || isDeletingLayers}
-            onOptionSelect={onManagedFilterSelect}
-          >
-            <Option value="managed" text="Managed">
-              Managed
-            </Option>
-            <Option value="unmanaged" text="Unmanaged">
-              Unmanaged
-            </Option>
-            <Option value="all" text="All">
-              All
-            </Option>
-          </Dropdown>
-        </div>
-
-        <div className={styles.switches}>
-          <Switch
-            label="Hidden"
-            checked={props.includeHidden}
-            onChange={(_e, d) => props.onIncludeHiddenChanged(d.checked)}
-            disabled={isDeletingLayers}
           />
         </div>
       </div>

@@ -5,6 +5,7 @@ export type SolutionComponent = {
   objectid: string;
   componenttype: number;
   componenttypeName: string;
+  solutionName?: string;
   name?: string;
 };
 
